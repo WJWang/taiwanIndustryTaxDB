@@ -1,0 +1,209 @@
+﻿<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link rel="stylesheet" type="text/css" href="indu.css">
+<title>稅務行業標準分類暨同業利潤標準查詢系統</title>
+<script type="text/javascript">
+//取得網址列參數
+function q(name) {
+  var AllVars = window.location.search.substring(1);
+  var Vars = AllVars.split('&');
+  for (i = 0; i < Vars.length; i++) {
+    var Var = Vars[i].split('=');
+    if (Var[0] == name) return Var[1];
+  }
+  return '';
+}
+var revid=q('rev');
+var id=q('id');
+var db = openDatabase('std', '1.0', '稅務子類', 5 * 1024 * 1024);
+var aStru=['','大類','中類','小類','細類','子類'];
+var aSub=['','大類架構','中類架構','小類架構','細類架構','本細類可分為以下子類：'];
+function init() {
+  //填入修訂次別
+  document.getElementById('revt').innerText=revid-2;
+  document.getElementById('revtt').innerText=revid-3;
+  document.getElementById('revtr').innerText=revid-3;
+  //顯示附註
+  if (revid==9) document.getElementById('pDesc5').style.display='block';
+  if (revid==10) document.getElementById('pDesc5').style.display='block';
+  db.transaction(function (tx) {
+    //取得分類階層內容
+    tx.executeSql("select a.indid, a.indname, a.indlevel, a.revid from industd as a left join indurel as b on a.revid=b.revid and a.indid=b.pid where plevel>0 and a.revid=? and b.indid=? order by a.indlevel", [revid,id], function (tx, results) {
+      var oRs=results.rows;
+	  var iCount=oRs.length;
+      var oU=document.getElementById('hstru');
+      for (var h=0; h<iCount; h++){
+	    //加清單項
+        var oLi=document.createElement('li');
+	    //分類碼
+		if (h<iCount-1) 
+          oLi.innerHTML=aStru[oRs.item(h).indlevel]+'：<a href="item.htm?rev='+revid+'&id='+oRs.item(h).indid+'">'+oRs.item(h).indid+'</a> - '+oRs.item(h).indname;
+		else {
+          oLi.innerHTML=aStru[oRs.item(h).indlevel]+'：'+oRs.item(h).indid+' - '+oRs.item(h).indname;
+		  if (oRs.item(h).indlevel<5) {
+            //取得分類完整內容
+            tx.executeSql("select indid, indname, inddesc ,indmark from industd where revid=? and indid=?", [revid,id], function (tx, results) {
+              var oRs=results.rows;
+	          var iCount=oRs.length;
+              var oT=document.getElementById('tDesc');
+	          for (var i=0; i<iCount; i++) {
+	            var oR=oT.insertRow(oT.rows.length);
+				oR.vAlign='top';
+				//分類碼
+	            var oC=oR.insertCell(-1);
+				oC.innerText=oRs.item(i).indid;
+				//名稱
+	            oC=oR.insertCell(-1);
+                oC.innerText=oRs.item(i).indname;
+				//定義
+	            oC=oR.insertCell(-1);
+                oC.innerText=oRs.item(i).inddesc;
+				tx.executeSql("select exlitem from induexl where revid=? and indid=?", [revid,id], function(tx, results) {
+                  var oRs=results.rows;
+	              var iCount=oRs.length;
+	              if (iCount>0) {
+                    var sText='<p>不包括：</p><ul class="list-circle">'
+	                for (var i=0; i<iCount; i++) 
+					  //加清單項
+                      sText+='<li>'+oRs.item(i).exlitem+'</li>';
+					sText+='</ul>';
+					oC.innerHTML+=sText;
+	              }
+				});
+	          }
+            });
+            //取得下一層分類
+            tx.executeSql("select indid, indname, indlevel, revid, indmark from industd where revid=? and parentid=? and indid != parentid order by indid", [revid,id], function (tx, results) {
+              var oRs=results.rows;
+	          var iCount=oRs.length;
+	          if (iCount>0) {
+	            document.getElementById('psub').innerText=aSub[oRs.item(0).indlevel];
+	          }
+              var oU=document.getElementById('hsub');
+	          for (var i=0; i<iCount; i++) {
+	            //加清單項
+                var oLi=document.createElement('li');
+                //分類碼
+                oLi.innerHTML='<a href="item.htm?rev='+revid+'&id='+oRs.item(i).indid+'">'+oRs.item(i).indid+oRs.item(i).indmark+aStru[oRs.item(i).indlevel]+'</a> - '+oRs.item(i).indname;
+	            oU.appendChild(oLi);
+	          }
+            });
+		  }
+		  else {
+			document.getElementById('dDesc').style.display='none';
+		    //顯示同業利潤標準表格
+			//1.顯示分類內容
+            tx.executeSql("select indid, indname, inddesc, indmark from industd where revid=? and indid=?", [revid,id], function (tx, results) {
+              var oRs=results.rows;
+			  if (oRs.length>0) {
+                var oT=document.getElementById('tDesc5');
+                var oR=oT.insertRow(oT.rows.length);
+				oR.vAlign='top';
+	            var oC=oR.insertCell(-1);
+                oC.innerText=oRs.item(0).indid+'\n'+oRs.item(0).indmark;
+			    oC.rowSpan=5;
+	            oC=oR.insertCell(-1);
+                oC.innerText=oRs.item(0).indname;
+		        oC.rowSpan=5;
+	            oC=oR.insertCell(-1);
+                oC.innerText=oRs.item(0).inddesc;
+			    oC.rowSpan=5;
+				//第一列預留空格
+				for (var c=0; c<6; c++) oC=oR.insertCell(-1);
+				//後四列預留空格
+				for (var i=0; i<4; i++) {
+				  var oRt=oT.insertRow(oT.rows.length);
+				  for (var c=0; c<6; c++) oC=oRt.insertCell(-1);
+				}
+				//與前次對照空格
+			    oC=oR.insertCell(-1);
+				oC.rowSpan=5;
+			  }
+            });
+			//2.同業利潤標準
+            tx.executeSql("select y, a1, a2, a3, a4, a5 from induattr where revid=? and indid=? order by y", [revid,id], function (tx, results) {
+              var oRs=results.rows;
+	          var iCount=oRs.length;
+              var oR=document.getElementById('tDesc5').rows;
+	          for (var r=0; r<iCount; r++) {
+			    var i=0;
+			    if (r==0) i=3; 
+			    oR[r+2].cells[i].innerText=oRs.item(r).y;
+			    oR[r+2].cells[i+1].innerText=oRs.item(r).a1;
+			    oR[r+2].cells[i+2].innerText=oRs.item(r).a2;
+			    oR[r+2].cells[i+3].innerText=oRs.item(r).a3;
+			    oR[r+2].cells[i+4].innerText=oRs.item(r).a4;
+			    oR[r+2].cells[i+5].innerText=oRs.item(r).a5;
+				for (var c=i; c<i+6; c++) oR[r+2].cells[c].className='hc';
+			  }
+            });
+			//3.與前次對照
+            tx.executeSql("select tindid, tmark, haslink from indumap where revid=? and indid=? and trevid=? order by tindid", [revid,id,revid-1], function (tx, results) {
+              var oRs=results.rows;
+	          var iCount=oRs.length;
+              var oR=document.getElementById('tDesc5').rows;
+			  var sText='';
+			  if (iCount>0) {
+			    if (oRs.item(0).haslink==1)
+	              for (var r=0; r<iCount; r++) {
+				    sText+='<a href="item.htm?rev='+(revid-1)+'&id='+oRs.item(r).tindid+'">'+oRs.item(r).tindid+oRs.item(r).tmark+'</a><br/>';
+			      }
+				else
+	              for (var r=0; r<iCount; r++) {
+				    sText+=oRs.item(r).tindid+oRs.item(r).tmark+'<br/>';
+			      }
+				oR[2].cells[9].innerHTML=sText;
+			  }
+            });
+			document.getElementById('dDesc5').style.display='block';
+		  }
+		}
+	    oU.appendChild(oLi);
+      } 
+    });
+  });
+}
+</script>
+</head>
+<body onLoad="init();">
+<center><h1>稅務行業標準分類暨同業利潤標準查詢系統(第<span id="revt"></span>次修訂)</h1></center>
+<ul id="nav">
+<li><a href="main.htm" target="indu">首頁</a></li>
+<li><a href="javascript:void();" onclick="location.href='tax.htm?rev='+revid">目錄查詢</a></li>
+<li><a href="javascript:void();" onclick="location.href='search.htm?rev='+revid">全文檢索</a></li>
+</ul>
+<p class="title1">行業分層</p>
+<ul id="hstru">
+</ul>
+<div id="dDesc">
+<table border="1" width="100%" cellpadding="6" cellspacing="0" id="tDesc">
+<tr valign="top">
+<th class="mt colid">分類編號</th>
+<th class="mt">行業名稱</th>
+<th class="mt">定義</th>
+</tr>
+</table>
+</div>
+<p class="title1" id="psub"></p>
+<ul id="hsub">
+</ul>
+<div id="dDesc5" style="display:none;">
+<table border="1" width="100%" cellpadding="6" cellspacing="0" id="tDesc5">
+<tr valign="top">
+<th class="mt colid" rowspan="2">分類編號</th><th class="mt" rowspan="2">行業名稱</th><th class="mt" rowspan="2">定義</th>
+<th class="mt no" rowspan="2">年度</th><th class="mt no" rowspan="2">擴大書審純益率</th><th class="mt no" rowspan="2">所得額標準</th><th class="mt" colspan="3">同業利潤標準</th><th class="mt colid" rowspan="2">對照第<span id="revtt"/></span>次修訂分類編號</th>
+</tr>
+<tr valign="top">
+<th class="mt no">毛利率</th><th class="mt no">費用率</th><th class="mt no">淨利率</th>
+</tr>
+</table>
+<p style="margin-left:3em; text-indent:-3em;">說明 ：1.營利事業同時經營2種以上行業時，應分別按各該行業之同業利潤標準計算。至有關所得額標準之適用，請參考財政部63年7月23日台財稅第35377號函辦理。</p>
+<p style="margin-left:4.2em; text-indent:-0.9em;">2.營利事業各業<span class="mb">所得額標準及同業利潤標準</span>，係根據各該業正常營運資料訂定，不包括營業外損益。</p>
+<p style="margin-left:4.2em; text-indent:-0.9em;">3.上表中擴大書審純益率欄打「－」或（ ）者，表示不適用擴大書面審核之業別，應查帳核定；但擴大書審純益率欄打（ ）者，其全年營業收入淨額及非營業收入合計在新臺幣一千萬元以下之申報案件，准予適用擴大書面審核，其適用純益率見括弧內標準。</p>
+<p style="margin-left:4.2em; text-indent:-0.9em;">4.擴大書審純益率、所得額標準及同業利潤標準等欄同時打「-」者，表示未訂定。</p>
+<p style="margin-left:4.2em; text-indent:-0.9em;">5.擴大書審純益率、所得額標準及同業利潤標準等欄同時打「X」者，表示子類於該年度並不適用。</p>
+<p id="pDesc5" style="margin-left:3em; text-indent:-3em;display:none;">附註：對照第<span id="revtr"></span>次修訂分類編號欄內，有「*」註記者，表示部份對照。</p>
+</div>
+</body>
+</html>

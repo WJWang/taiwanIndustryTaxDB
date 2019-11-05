@@ -1,0 +1,68 @@
+﻿<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link rel="stylesheet" type="text/css" href="indu.css">
+<title>稅務行業標準分類暨同業利潤標準查詢系統</title>
+<script type="text/javascript">
+//取得網址列參數
+function q(name) {
+  var AllVars = window.location.search.substring(1);
+  var Vars = AllVars.split('&');
+  for (i = 0; i < Vars.length; i++) {
+    var Var = Vars[i].split('=');
+    if (Var[0] == name) return Var[1];
+  }
+  return '';
+}
+var revid=q('rev');
+var db = openDatabase('std', '1.0', '稅務子類', 5 * 1024 * 1024);
+var msg;
+function init() {
+  document.getElementById('revt').innerText=revid-2;
+  db.transaction(function (tx) {
+    //取得大類內容
+    tx.executeSql("select indid, indname, indlevel, revid from industd where revid=? and indlevel=? order by indid", [revid,1], function (tx, results) {
+     var oRs=results.rows;
+     var iCount = oRs.length, iHalf=Math.ceil(iCount/2);
+     var oT=document.getElementById('tDir');
+     for (var i = 0; i < iCount/2; i++){
+	   //加列
+       var oR=oT.insertRow(oT.rows.length);
+	   //分類碼
+       var oC=oR.insertCell(-1);
+       oC.outerHTML='<th><a href="item.htm?rev='+revid+'&id='+oRs.item(i).indid+'">'+oRs.item(i).indid+'大類</a></th>';
+	   //分類名稱
+       oC=oR.insertCell(-1);
+       oC.innerHTML=oRs.item(i).indname;
+	   //分類碼
+       oC=oR.insertCell(-1);
+       oC.outerHTML='<th><a href="item.htm?rev='+revid+'&id='+oRs.item(i+iHalf).indid+'">'+oRs.item(i+iHalf).indid+'大類</a></th>';
+	   //分類名稱
+       oC=oR.insertCell(-1);
+       oC.innerHTML=oRs.item(i+iHalf).indname;
+     } 
+   }, null);
+  });
+}
+</script>
+</head>
+<body onLoad="init();">
+<center><h1>稅務行業標準分類暨同業利潤標準查詢系統(第<span id="revt"></span>次修訂)</h1></center>
+<ul id="nav">
+<li><a href="main.htm" target="indu">首頁</a></li>
+<li><a href="javascript:void();" onclick="location.href='tax.htm?rev='+revid">目錄查詢</a></li>
+<li><a href="javascript:void();" onclick="location.href='search.htm?rev='+revid">全文檢索</a></li>
+</ul>
+<center>
+<p>請點選大類檢視行業名稱及定義</p>
+<table border="1" width="80%" cellpadding="6" cellspacing="0" id="tDir">
+<tr valign="top">
+<th class="mt" width="10%">分類編號</th>
+<th class="mt">名稱</th>
+<th class="mt" width="10%">分類編號</th>
+<th class="mt">名稱</th>
+</tr>
+</table>
+</center>
+</body>
+</html>

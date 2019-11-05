@@ -1,0 +1,321 @@
+﻿<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link rel="stylesheet" type="text/css" href="indu.css">
+<title>稅務行業標準分類暨同業利潤標準查詢系統</title>
+<script type="text/javascript">
+//取得網址列參數
+function q(name) {
+  var AllVars = window.location.search.substring(1);
+  var Vars = AllVars.split('&');
+  for (i = 0; i < Vars.length; i++) {
+    var Var = Vars[i].split('=');
+    if (Var[0] == name) return Var[1];
+  }
+  return '';
+}
+var revid=q('rev');
+var db = openDatabase('std', '1.0', '稅務子類', 5 * 1024 * 1024);
+
+var aIds=null, iSel=0, oDiv=null, bOk=false, iKwCount=0, iCur=0, aKw=null, iRows=0;
+function init() {
+  //填入修訂次別
+  document.getElementById('revt').innerText=revid-2;
+  document.getElementById('revt1').innerText=revid-3;
+  document.getElementById('revt2').innerText=revid-3;
+}
+function findindid() {
+  aKw=null;
+  iKwCount=0;
+  iCur=0;
+  iRows=0;  
+  document.getElementById('qd1').style.display='none'
+  document.getElementById('qd2').style.display='none'
+  aIds=Array();
+  //顯示查詢結果
+  //決定呈現哪一種表
+  iSel=document.getElementById('q1').checked ? 1 : 2 ;
+  oDiv=document.getElementById('qd'+iSel);
+  document.getElementById('qt'+iSel).innerText='';
+  document.getElementById('qc'+iSel).innerText='';
+  //隱藏查詢介面
+  document.getElementById('qry').style.display='none';
+  //取得查詢字串
+  var kw=document.getElementById('kw').value.replace(/' '/g,'');
+  var qid=document.getElementById('qid').value.replace(/' '/g,'');
+  //分類編號
+  if (qid!='') {
+	document.getElementById('qc'+iSel).innerText='查詢分類編號：'+qid;
+	var aCodes=qid.split(',');
+	for (var t=0; t<aCodes.length; t++) {
+	  aIds.push(aCodes[t]);
+	}
+	if (kw=='') fShow();
+  }
+  //關鍵字
+  if (kw!='') {
+    bOk=false;
+    document.getElementById('wait').style.display='block';
+	//顯示查詢條件
+	document.getElementById('qt'+iSel).innerText='查詢關鍵字：'+kw;
+	aKw=kw.split(',');
+	iKwCount=aKw.length;
+	iCur=0;
+	fQuery();
+  }
+}
+function fQuery() {
+  db.transaction(function (tx) {
+    //取得關鍵字查詢內容
+	var sSql="select indid from industd where revid="+revid+" and (indname like '%"+aKw[iCur]+"%' or indmark like '%"+aKw[iCur]+"%' or inddesc like '%"+aKw[iCur]+"%') union select indid from induexl where revid="+revid+" and exlitem like '%"+aKw[iCur]+"%' order by indid"
+    tx.executeSql(sSql, [], function (tx, results) {
+      var oRs=results.rows;
+	  var iCount=oRs.length;
+      for (var h=0; h<iCount; h++){
+	    aIds.push(oRs.item(h).indid);
+      } 
+	  iCur++;
+	  if (iCur==iKwCount) bOk=true;
+	  if (!bOk) fQuery();
+  	  if (bOk) fShow();
+    });
+  });
+}
+function fShow() {
+  //取得顯示資料表格
+  var oT=oDiv.getElementsByTagName('table')[0];
+  var hrows=oT.getAttribute('hrows');
+  while (oT.rows.length>hrows) oT.deleteRow(hrows);
+  var bTax=(iSel==1 ? false : true);
+  var iRS=5;
+  //將分類編號排序
+  aIds.sort();
+  //填入資料
+  db.transaction(function (tx) {
+    for (var i=0; i<aIds.length; i++) {
+      if (bTax && aIds[i].length<7) continue;
+	  if (i>0 && aIds[i]==aIds[i-1]) continue;
+      //逐筆取得分類內容
+      tx.executeSql("select indid, indname, inddesc, indmark from industd where revid=? and indid=?", [revid,aIds[i]], function (tx, results) {
+        var oRs=results.rows;
+	    var iCount=oRs.length;
+		if (iCount>0) {
+		  iRows++;
+          var oR=oT.insertRow(oT.rows.length);
+		  oR.vAlign='top';
+          var oC=oR.insertCell(-1);
+          //--序號
+	      oC.innerText='('+iRows+')';
+	      oC.className='hc';
+	      if (bTax) oC.rowSpan=iRS;
+	      oC=oR.insertCell(-1);
+	      //--代碼連結
+	      oC.innerHTML='<a href="item.htm?rev='+revid+'&id='+oRs.item(0).indid+'" target="_blank">'+oRs.item(0).indid+'<br/>'+oRs.item(0).indmark+'</a>';
+	      if (bTax) oC.rowSpan=iRS;
+	      oC=oR.insertCell(-1);
+	      //行業名稱
+	      oC.innerText=oRs.item(0).indname;
+  	      if (bTax) oC.rowSpan=iRS;
+	      var oCR=oR.insertCell(-1);
+		  //定義
+		  var sEx=oRs.item(0).inddesc;
+          oCR.innerText=sEx;
+	      if (bTax) oCR.rowSpan=iRS;
+		  var cid=oRs.item(0).indid;
+		  //不包括
+		  var sSql="select exlitem from induexl where revid="+revid+" and indid='"+cid+"'"
+		  tx.executeSql(sSql, [], function(tx, results) {
+            var oRs=results.rows;
+	        var iCount=oRs.length;
+	        if (iCount>0) {
+              var sText='<p>不包括：</p><ul class="list-circle">'
+	          for (var r=0; r<iCount; r++) 
+			    //加清單項
+                sText+='<li>'+oRs.item(r).exlitem+'</li>';
+			  sText+='</ul>';
+			  oCR.innerHTML+=sText;
+	        }
+		  });
+		  //插入行業利潤標準第1列
+		  if (bTax) {
+		    for (var t=0; t<6; t++) {
+			  var oCT=oR.insertCell(-1);
+			  oCT.className='hc';
+			}
+		  }
+		  //前次對照
+		  sSql="select tindid, tmark, haslink from indumap where revid="+revid+" and indid='"+cid+"' and trevid="+(revid-1)+" order by tindid";
+          tx.executeSql(sSql, [], function (tx, results) {
+            var oRs=results.rows;
+	        var iCount=oRs.length;
+			var sText='';
+			if (iCount>0) {
+			  if (oRs.item(0).haslink==1)
+	            for (var r=0; r<iCount; r++) {
+			     sText+='<a href="item.htm?rev='+(revid-1)+'&id='+oRs.item(r).tindid+'">'+oRs.item(r).tindid+oRs.item(r).tmark+'</a><br/>';
+			    }
+			  else
+	            for (var r=0; r<iCount; r++) {
+				  sText+=oRs.item(r).tindid+oRs.item(r).tmark+'<br/>';
+			    }
+              var oCR=oR.insertCell(-1);
+              if (bTax) oCR.rowSpan=iRS;
+			  oCR.innerHTML=sText;
+			}
+			else {
+              var oCR=oR.insertCell(-1);
+              if (bTax) oCR.rowSpan=iRS;
+			}
+          });
+		  if (bTax) {
+		    //插入行業利潤標準第2列~5列
+		    for (var r=0; r<4; r++) {
+		      var oRT=oT.insertRow(oT.rows.length);
+		      for (var t=0; t<6; t++) {
+			    var oCT=oRT.insertCell(-1);
+			    oCT.className='hc';
+			  }
+			}
+			//取得行業利潤標準
+			sSql="select y, a1, a2, a3, a4, a5 from induattr where revid="+revid+" and indid='"+cid+"' order by y";
+            tx.executeSql(sSql, [], function (tx, results) {
+              var oRs=results.rows;
+	          var iCount=oRs.length;
+			  if (iCount>0) {
+			    for (var r=0; r<iCount; r++) {
+				  var c=0;
+				  var rindex=oR.rowIndex;
+				  if (r==0) c=4;
+			      oT.rows[rindex+r].cells[c].innerText=oRs.item(r).y;
+			      oT.rows[rindex+r].cells[c+1].innerText=oRs.item(r).a1;
+			      oT.rows[rindex+r].cells[c+2].innerText=oRs.item(r).a2;
+			      oT.rows[rindex+r].cells[c+3].innerText=oRs.item(r).a3;
+			      oT.rows[rindex+r].cells[c+4].innerText=oRs.item(r).a4;
+			      oT.rows[rindex+r].cells[c+5].innerText=oRs.item(r).a5;
+				}
+			  }
+            });
+		  }
+		}
+      });
+	}
+    document.getElementById('wait').style.display='none';
+    oDiv.style.display='block';
+  },
+  function(tx) {
+    //顯示查詢筆數
+    document.getElementById('qr'+iSel).innerText=iRows;
+  },
+  function(tx) {
+    //顯示查詢筆數
+    document.getElementById('qr'+iSel).innerText=iRows;
+	//關鍵字標示
+    for (var k=0; k<aKw.length; k++) markText(document.getElementById('tbl'+iSel),aKw[k]);
+  });
+}
+function markText(oNode, sSearch) {
+  if (sSearch=='') return;
+  var oRows=oNode.rows;
+  var nRows=oRows.length;
+  for (var r=0; r<nRows; r++) {
+    oCells=oRows[r].cells;
+	for (var c=0; c<oCells.length; c++) {
+      var sText=oCells[c].innerHTML;
+      if (sText != undefined) {
+        var oSearch=new RegExp(sSearch,"g");
+        if (oSearch.test(sText)) {
+          oCells[c].innerHTML=sText.replace(oSearch,'<span class="hilight">'+sSearch+'</span>');
+        }
+	  }
+    }
+  }
+}
+</script>
+</head>
+<body onLoad="init();">
+<center><h1>稅務行業標準分類暨同業利潤標準查詢系統(第<span id="revt"></span>次修訂)</h1></center>
+<ul id="nav">
+<li><a href="main.htm" target="indu">首頁</a></li>
+<li><a href="javascript:void();" onclick="location.href='tax.htm?rev='+revid">目錄查詢</a></li>
+<li><a href="javascript:void();" onclick="location.href='search.htm?rev='+revid">全文檢索</a></li>
+</ul>
+<form>
+<center>
+<table border="0" cellspacing="0" cellpadding="6" width="80%">
+<tr>
+<th class="mh" width="20%">關鍵字</th>
+<td><input type="text" name="kw" id="kw" size="80"/></td>
+</tr>
+<tr>
+<th class="mh">分類編號</th>
+<td><input type="text" name="qid" id="qid" size="80"/></td>
+</tr>
+<tr>
+<th class="mh">查詢項目</th>
+<td>
+<input type="radio" name="q" id="q1" value="1" checked>分類編號、行業名稱、定義</input><br/>
+<input type="radio" name="q" id="q2" value="2">擴大書審純益率、所得額標準及同業利潤標準</input>
+</td>
+</tr>
+<tr>
+<td colspan="2">
+<center><input type="button" name="btnQ" id="btnQ" value="查詢" style="font-family:'Microsoft JhengHei';" onClick="findindid();"><input type="reset" value="清除" style="font-family:'Microsoft JhengHei';" /></center>
+</td>
+</tr>
+</table>
+</center>
+<center>
+<table border="1" cellspacing="0" cellpadding="6" width="80%" id="qry">
+<tr>
+<td class="mt">
+<p class="mg">查詢說明：</p>
+<p>可任選欄位輸入查詢條件找尋符合之行業。</p>
+<p>一、關鍵字：可輸入行業名稱或定義中之任一語辭查詢符合之行業，若欲查詢多個關鍵字，請以逗號區隔。(Ex:藝人,演員)</p>
+<p>二、分類編號：</p>
+<p class="i2">1.若查詢<span class="mb">子類，請輸入6碼數字 (Ex:0113-11)</span>；<br/>
+細類，請輸入4碼數字 (Ex:0113)；<br/>
+小類，請輸入3碼數字 (Ex:011)；<br/>
+中類，請輸入2碼數字 (Ex:01)；<br/>
+大類，請輸入1碼英文字母 (Ex:A)。
+<p>
+<p class="i2">2.若查詢<span class="mb">多個分類編號，請以逗號區隔 (Ex:0113-11,0116-11,0129-11)</span></p>
+<p>三、查詢項目：</p>
+<p class="i2">1.查詢<span class="mb">分類編號、行業名稱、定義</span>，範圍將涵蓋大類、中類、小類、細類及子類。</p>
+<p class="i2">2.查詢擴大書審純益率、所得額標準及同業利潤標準，範圍將限縮在子類範圍。</p>
+<p class="mg">注意事項：</p>
+<p class="i3">1.營利事業同時經營2種以上行業時，應分別按各該行業之同業利潤標準計算。至有關所得額標準之適用，請參考財政部63年7月23日台財稅第35377號函辦理。</p>
+<p class="i3">2.營利事業各業<span class="mb">所得額標準及同業利潤標準</span>，係根據各該業正常營運資料訂定，不包括營業外損益。</p>
+</td>
+</tr>
+</table>
+</center>
+<center><img id="wait" src="images/wait.gif" style="display:none"/></center>
+<div id="qd1" style="display:none;">
+<center>
+<p><span id="qt1"></span></p>
+<p><span id="qc1"></span></p>
+<p>搜尋結果，共查到<span id="qr1"></span>筆資料</p>
+<table border="1" width="100%" cellpadding="6" cellspacing="0" id="tbl1" hrows="1">
+<tr valign="top"><th class="mt no">序號</th><th class="mt colid">分類編號</th><th class="mt">行業名稱</th><th class="mt">定義</th><th class="mt colid">對照第<span id="revt1"></span>次修訂分類編號</th></tr>
+</table>
+</center>
+</div>
+<div id="qd2" style="display:none;">
+<center>
+<p><span id="qt2"></span></p>
+<p><span id="qc2"></span></p>
+<p>搜尋結果，共查到<span id="qr2"></span>筆資料</p>
+<table border="1" width="100%" cellpadding="6" cellspacing="0" id="tbl2" hrows="2">
+<tr valign="top">
+<th class="mt no" rowspan="2">序號</th><th class="mt colid" rowspan="2">分類編號</th><th class="mt" rowspan="2">行業名稱</th><th class="mt" rowspan="2">定義</th>
+<th class="mt no" rowspan="2">年度</th><th class="mt no" rowspan="2">擴大書審純益率</th><th class="mt no" rowspan="2">所得額標準</th><th class="mt" colspan="3">同業利潤標準</th><th class="mt colid" rowspan="2">對照第<span id="revt2"></span>次修訂分類編號</th>
+</tr>
+<tr valign="top">
+<th class="mt no">毛利率</th><th class="mt no">費用率</th><th class="mt no">淨利率</th>
+</tr>
+</table>
+</div>
+</center>
+</form>
+</body>
+</html>
