@@ -1,0 +1,6 @@
+SELECT industd.indid as '分類編號', industd.indname as '行業名稱', y as '年度', a1 as '擴大書審純益率', a2 as '所得額標準', a3 as '毛利率', a4 as '費用率', a5 as '淨利率'
+FROM industd
+LEFT JOIN induattr ON induattr.indid = industd.indid
+WHERE industd.revid=10
+AND induattr.revid=10
+AND y = 110
